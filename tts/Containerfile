@@ -1,0 +1,26 @@
+FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn8-runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    chatterbox-tts \
+    openai-whisper \
+    pysbd \
+    pyloudnorm \
+    soundfile \
+    requests
+
+# Bake Chatterbox model weights into the image so the GPU node has no
+# runtime dependency on HuggingFace.
+RUN python -c "from chatterbox.tts import ChatterboxTTS; ChatterboxTTS.from_pretrained(device='cpu')"
+
+# Bake Whisper medium model weights (~1.5 GB).
+RUN python -c "import whisper; whisper.load_model('medium', download_root='/models/whisper')"
+
+COPY run.py /app/run.py
+
+WORKDIR /app
+ENV WHISPER_DOWNLOAD_ROOT=/models/whisper
+CMD ["python", "run.py"]
