@@ -19,10 +19,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # chatterbox-tts 0.1.6 hard-pins torch==2.6.0 which only ships cu124+.
 # Install torch + torchvision from the cu124 index first, then the app
 # deps in a single pip invocation so the solver respects the pin.
-RUN pip install --no-cache-dir \
+RUN python -m pip install --no-cache-dir \
     torch==2.6.0 torchvision==0.21.0 \
     --index-url https://download.pytorch.org/whl/cu124 \
- && pip install --no-cache-dir \
+ && python -m pip install --no-cache-dir \
     chatterbox-tts \
     openai-whisper \
     pysbd \
