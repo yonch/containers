@@ -11,34 +11,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 python3.11-venv python3.11-distutils \
     ffmpeg \
     libcudnn9-cuda-12 \
+    git \
  && ln -sf /usr/bin/python3.11 /usr/bin/python \
  && python -m ensurepip --upgrade \
  && apt-get purge -y software-properties-common \
  && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
+# Install tts-audiobook-tool from our fork (pinned commit).
 # chatterbox-tts 0.1.6 hard-pins torch==2.6.0 which only ships cu124+.
-# Install torch + torchvision from the cu124 index first, then the app
-# deps in a single pip invocation so the solver respects the pin.
-RUN python -m pip install --no-cache-dir \
-    torch==2.6.0 torchvision==0.21.0 \
+# Install torch from the cu124 index first so the solver respects the pin,
+# then the full requirements file which covers chatterbox-tts, faster-whisper,
+# and all audio-processing dependencies.
+ARG TTS_TOOL_COMMIT=a4875021374ab95b0ad36213639194807a5039a1
+RUN git clone https://github.com/yonch/tts-audiobook-tool.git /opt/tts-audiobook-tool \
+ && cd /opt/tts-audiobook-tool && git checkout $TTS_TOOL_COMMIT \
+ && python -m pip install --no-cache-dir \
+    torch==2.6.0 torchaudio==2.6.0 \
     --index-url https://download.pytorch.org/whl/cu124 \
  && python -m pip install --no-cache-dir \
-    chatterbox-tts \
-    openai-whisper \
-    pysbd \
-    pyloudnorm \
-    soundfile \
-    requests
+    -r /opt/tts-audiobook-tool/requirements-chatterbox.txt \
+ && python -m pip install --no-cache-dir -e /opt/tts-audiobook-tool \
+ && python -m pip install --no-cache-dir requests
 
 # Bake Chatterbox model weights into the image so the GPU node has no
 # runtime dependency on HuggingFace.
 RUN python -c "from chatterbox.tts import ChatterboxTTS; ChatterboxTTS.from_pretrained(device='cpu')"
 
-# Bake Whisper medium model weights (~1.5 GB).
-RUN python -c "import whisper; whisper.load_model('medium', download_root='/models/whisper')"
+# Bake faster-whisper medium model weights.
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('medium', device='cpu', compute_type='int8', download_root='/models/whisper')"
 
 COPY run.py /app/run.py
 
 WORKDIR /app
-ENV WHISPER_DOWNLOAD_ROOT=/models/whisper
 CMD ["python", "run.py"]
