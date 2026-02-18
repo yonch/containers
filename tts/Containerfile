@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
 
 # Python 3.11 via deadsnakes (Ubuntu 22.04 ships 3.10)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && apt-get purge -y software-properties-common \
  && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
-# cuDNN 9 runtime (supports all CUDA 12.x including 12.1)
+# cuDNN 9 runtime (supports all CUDA 12.x)
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl gnupg \
  && curl -fsSL https://developer.download.nvidia.com/compute/cudnn/repos/ubuntu2204/x86_64/3bf863cc.pub \
@@ -23,12 +23,12 @@ RUN apt-get update \
  && apt-get purge -y curl gnupg && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
 
-# Pin torch + torchvision from the PyTorch cu121 index, then install
-# application deps. Pinning prevents chatterbox-tts from pulling a newer
-# torch that would break torchvision's C++ extensions.
+# chatterbox-tts 0.1.6 hard-pins torch==2.6.0 which only ships cu124+.
+# Install torch + torchvision from the cu124 index first, then the app
+# deps in a single pip invocation so the solver respects the pin.
 RUN pip install --no-cache-dir \
-    torch==2.4.0 torchvision==0.19.0 \
-    --index-url https://download.pytorch.org/whl/cu121 \
+    torch==2.6.0 torchvision==0.21.0 \
+    --index-url https://download.pytorch.org/whl/cu124 \
  && pip install --no-cache-dir \
     chatterbox-tts \
     openai-whisper \
