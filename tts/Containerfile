@@ -2,28 +2,19 @@ FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Python 3.11 via deadsnakes (Ubuntu 22.04 ships 3.10)
+# Python 3.11 via deadsnakes (Ubuntu 22.04 ships 3.10) + cuDNN 9 from
+# the NVIDIA CUDA repo already configured in the base image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
  && add-apt-repository -y ppa:deadsnakes/ppa \
  && apt-get update && apt-get install -y --no-install-recommends \
     python3.11 python3.11-venv python3.11-distutils \
     ffmpeg \
+    libcudnn9-cuda-12 \
  && ln -sf /usr/bin/python3.11 /usr/bin/python \
  && python -m ensurepip --upgrade \
  && apt-get purge -y software-properties-common \
  && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
-
-# cuDNN 9 runtime (supports all CUDA 12.x)
-RUN apt-get update \
- && apt-get install -y --no-install-recommends curl gnupg \
- && curl -fsSL https://developer.download.nvidia.com/compute/cudnn/repos/ubuntu2204/x86_64/3bf863cc.pub \
-    | gpg --dearmor -o /usr/share/keyrings/cudnn-keyring.gpg \
- && echo "deb [signed-by=/usr/share/keyrings/cudnn-keyring.gpg] https://developer.download.nvidia.com/compute/cudnn/repos/ubuntu2204/x86_64/ /" \
-    > /etc/apt/sources.list.d/cudnn.list \
- && apt-get update && apt-get install -y --no-install-recommends libcudnn9-cuda-12 \
- && apt-get purge -y curl gnupg && apt-get autoremove -y \
- && rm -rf /var/lib/apt/lists/*
 
 # chatterbox-tts 0.1.6 hard-pins torch==2.6.0 which only ships cu124+.
 # Install torch + torchvision from the cu124 index first, then the app
