@@ -37,16 +37,9 @@ RUN git clone https://github.com/yonch/tts-audiobook-tool.git /opt/tts-audiobook
 # found by setuptools find_packages(), which misses bare .py files.
 ENV PYTHONPATH="/opt/tts-audiobook-tool${PYTHONPATH:+:$PYTHONPATH}"
 
-# Bake Chatterbox Multilingual model weights into the image so the GPU
-# node has no runtime dependency on HuggingFace.  run.py defaults to
-# chatterbox_type="multilingual" which uses ChatterboxMultilingualTTS.
-RUN python -c "from chatterbox.mtl_tts import ChatterboxMultilingualTTS; ChatterboxMultilingualTTS.from_pretrained(device='cpu')"
-
-# Bake faster-whisper medium model weights.
-RUN python -c "from faster_whisper import WhisperModel; WhisperModel('medium', device='cpu', compute_type='int8', download_root='/models/whisper')"
-
-# Bake YAMNet ONNX model weights (used for music detection).
-RUN python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='zeropointnine/yamnet-onnx', filename='yamnet.onnx')"
+# Model weights are downloaded from S3 at container startup (see run.py
+# and the MODELS_URL env var).  The tts-model-upload workflow builds and
+# uploads the archive.
 
 COPY run.py /app/run.py
 
