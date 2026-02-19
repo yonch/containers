@@ -5,6 +5,7 @@ Reads pre-signed S3 URLs from environment variables:
   SOURCE_URL  — GET URL for the source text document
   OUTPUT_URL  — PUT URL for the output mp3
   VOICE_URL   — (optional) GET URL for a reference voice clip
+  MODELS_URL  — (optional) GET URL for the model weights tar archive
 
 Downloads source text, runs Chatterbox TTS via tts-audiobook-tool with
 faster-whisper STT validation, and uploads the resulting mp3.
@@ -15,9 +16,43 @@ import subprocess
 import sys
 import tempfile
 
-import requests
+# Point HuggingFace cache at the model extraction directory so that
+# chatterbox and yamnet find pre-downloaded weights there.
+os.environ.setdefault("HF_HUB_CACHE", "/models/hf-cache")
 
-from tts_audiobook_tool.api import AudiobookConfig, create_audiobook, init
+import requests  # noqa: E402
+
+from tts_audiobook_tool.api import AudiobookConfig, create_audiobook, init  # noqa: E402
+
+
+def download_models():
+    """Download and extract model weights from a pre-signed S3 URL.
+
+    Reads MODELS_URL from the environment.  If not set, assumes models
+    are already present (baked image or local dev).  Streams the tar
+    archive directly into extraction to minimize disk usage.
+    """
+    models_url = os.environ.get("MODELS_URL")
+    if not models_url:
+        return
+
+    # Sentinel: if the HF cache already contains model dirs, skip.
+    hf_cache = os.environ["HF_HUB_CACHE"]
+    if os.path.isdir(hf_cache) and os.listdir(hf_cache):
+        print("Models already present, skipping download")
+        return
+
+    print("Downloading model weights from S3...")
+    result = subprocess.run(
+        ["sh", "-c", 'curl -fSL "$1" | tar -xf - -C /models', "--", models_url],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"ERROR: model download failed:\n{result.stderr}", file=sys.stderr)
+        sys.exit(1)
+    print("Model weights extracted")
 
 
 def download(url, path):
@@ -43,6 +78,8 @@ def main():
     chatterbox_type = os.environ.get("CHATTERBOX_TYPE", "multilingual")
     exaggeration = float(os.environ.get("EXAGGERATION", "-1"))
     cfg = float(os.environ.get("CFG", "-1"))
+
+    download_models()
 
     print("Initializing tts-audiobook-tool...")
     model_name = init()

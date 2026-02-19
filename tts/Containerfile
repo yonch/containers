@@ -1,16 +1,15 @@
-FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Python 3.11 via deadsnakes (Ubuntu 22.04 ships 3.10) + cuDNN 9 from
-# the NVIDIA CUDA repo already configured in the base image.
+# Python 3.11 via deadsnakes (Ubuntu 22.04 ships 3.10).  cuDNN 9 is
+# provided by the -cudnn- base image variant.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
  && add-apt-repository -y ppa:deadsnakes/ppa \
  && apt-get update && apt-get install -y --no-install-recommends \
     python3.11 python3.11-venv python3.11-distutils \
     ffmpeg \
-    libcudnn9-cuda-12 \
     git \
  && ln -sf /usr/bin/python3.11 /usr/bin/python \
  && python -m ensurepip --upgrade \
@@ -38,15 +37,9 @@ RUN git clone https://github.com/yonch/tts-audiobook-tool.git /opt/tts-audiobook
 # found by setuptools find_packages(), which misses bare .py files.
 ENV PYTHONPATH="/opt/tts-audiobook-tool${PYTHONPATH:+:$PYTHONPATH}"
 
-# Bake Chatterbox model weights into the image so the GPU node has no
-# runtime dependency on HuggingFace.
-RUN python -c "from chatterbox.tts import ChatterboxTTS; ChatterboxTTS.from_pretrained(device='cpu')"
-
-# Bake faster-whisper medium model weights.
-RUN python -c "from faster_whisper import WhisperModel; WhisperModel('medium', device='cpu', compute_type='int8', download_root='/models/whisper')"
-
-# Bake YAMNet ONNX model weights (used for music detection).
-RUN python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='zeropointnine/yamnet-onnx', filename='yamnet.onnx')"
+# Model weights are downloaded from S3 at container startup (see run.py
+# and the MODELS_URL env var).  The tts-model-upload workflow builds and
+# uploads the archive.
 
 COPY run.py /app/run.py
 
