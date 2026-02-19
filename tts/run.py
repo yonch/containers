@@ -43,6 +43,7 @@ def download_models():
         return
 
     print("Downloading model weights from S3...")
+    os.makedirs("/models", exist_ok=True)
     result = subprocess.run(
         ["sh", "-c", 'curl -fSL "$1" | tar -xf - -C /models', "--", models_url],
         check=False,
